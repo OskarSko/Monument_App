@@ -1,0 +1,22 @@
+# Node.js
+node_modules/
+npm-debug.log
+.env # Bardzo ważne! Plik z wrażliwymi danymi (hasła do DB, JWT_SECRET)
+dist/ # Folder buildowy dla frontendu (jeśli używasz)
+
+# pg_tileserv (jeśli są jakieś specyficzne pliki, które nie powinny iść na repo)
+*.exe # np. pg_tileserv.exe, jeśli nie chcesz go wrzucać
+pg_tileserv_config.toml # Jeśli używasz innej nazwy pliku konfiguracyjnego dla tileserv i zawiera hasła
+
+# IDE (np. VS Code)
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
