@@ -40,7 +40,7 @@
       </div>
     </div>
 
-    <div class="add-monument-panel" :class="{ 'is-open': showAddForm }">
+    <div class="side-panel add-monument-panel" :class="{ 'is-open': showAddForm }">
       <h2>Dodaj nowy pomnik</h2>
       <form @submit.prevent="addMonument">
         <div class="form-group">
@@ -88,14 +88,81 @@
       </form>
     </div>
 
-    <div class="details-panel" :class="{ 'is-open': selectedMonument }">
+    <div class="side-panel details-panel" :class="{ 'is-open': selectedMonument }">
+      <!-- v-if zapobiega błędom, gdy żaden pomnik nie jest wybrany -->
       <div v-if="selectedMonument">
         <h2>{{ selectedMonument.name }}</h2>
-        <p class="details-description">{{ selectedMonument.description || 'Brak opisu dla tego miejsca.' }}</p>
-        <div class="details-coords">
-          <strong>Współrzędne:</strong>
-          <span>{{ selectedMonument.location.coordinates[1].toFixed(2) }} (szer.), {{ selectedMonument.location.coordinates[0].toFixed(4) }} (dł.)</span>
+        
+        <!-- Opis / Kontekst historyczny -->
+        <p v-if="selectedMonument.description" class="details-description">
+          {{ selectedMonument.description }}
+        </p>
+        
+        <!-- Lista szczegółowych informacji -->
+        <div class="details-list">
+          <div v-if="selectedMonument.year" class="detail-item">
+            <span class="detail-label">Rok powstania:</span>
+            <span class="detail-value">{{ selectedMonument.year }}</span>
+          </div>
+          <div v-if="selectedMonument.author" class="detail-item">
+            <span class="detail-label">Autor:</span>
+            <span class="detail-value">{{ selectedMonument.author }}</span>
+          </div>
+          <div v-if="selectedMonument.status" class="detail-item">
+            <span class="detail-label">Status:</span>
+            <span class="detail-value">{{ selectedMonument.status }}</span>
+          </div>
+          <div v-if="selectedMonument.last_restoration_date" class="detail-item">
+            <span class="detail-label">Ostatnia konserwacja:</span>
+            <!-- Formatujemy datę, usuwając część z czasem -->
+            <span class="detail-value">{{ new Date(selectedMonument.last_restoration_date).toLocaleDateString() }}</span>
+          </div>
+          <div class="detail-item">
+            <span class="detail-label">Współrzędne:</span>
+            <span class="detail-value">
+              {{ selectedMonument.location.coordinates[1].toFixed(4) }}, {{ selectedMonument.location.coordinates[0].toFixed(4) }}
+            </span>
+          </div>
         </div>
+        <hr class="section-divider">
+
+        <div class="conservation-section">
+          <h4>Historia Konserwacji</h4>
+          
+          <!-- Lista wpisów -->
+          <ul v-if="conservationHistory.length > 0" class="history-list">
+            <li v-for="entry in conservationHistory" :key="entry.id" class="history-item">
+              <span class="history-date">{{ new Date(entry.conservation_date).toLocaleDateString() }}</span>
+              <strong class="history-work-type">{{ entry.type_of_work }}</strong>
+              <p v-if="entry.notes" class="history-notes">{{ entry.notes }}</p>
+            </li>
+          </ul>
+          <p v-else class="no-history-message">Brak wpisów w historii konserwacji.</p>
+
+          <button v-if="!showConservationForm" @click="showConservationForm = true" class="add-entry-button">
+            Dodaj nowy wpis
+          </button>
+          
+          <!-- Formularz dodawania nowego wpisu -->
+          <form v-if="showConservationForm" @submit.prevent="addConservationEntry" class="conservation-form">
+            <h5>Nowy wpis konserwacji</h5>
+            <div class="form-group">
+              <label for="conservation_date">Data pracy:</label>
+              <input type="date" id="conservation_date" v-model="newConservationEntry.conservation_date" required />
+            </div>
+            <div class="form-group">
+              <label for="type_of_work">Rodzaj pracy:</label>
+              <input type="text" id="type_of_work" v-model="newConservationEntry.type_of_work" placeholder="np. Mycie, Malowanie" required />
+            </div>
+            <div class="form-group">
+              <label for="notes">Uwagi:</label>
+              <textarea id="notes" v-model="newConservationEntry.notes"></textarea>
+            </div>
+            <button type="submit">Zapisz wpis</button>
+            <button type="button" @click="showConservationForm = false">Anuluj</button>
+          </form>
+        </div>
+
         <button @click="closeDetailsPanel">Zamknij</button>
       </div>
     </div>
@@ -119,6 +186,7 @@ export default {
   },
   data() {
     return {
+      selectedMonument: null,
       showAddForm: false,
       addModeActive: false,
       newMonument: {
@@ -127,6 +195,13 @@ export default {
         coordsInput: '',
         coordinates: []
       },
+      conservationHistory: [],
+      showConservationForm: false,
+      newConservationEntry: {
+        conservation_date: '',
+        type_of_work: '',
+        notes: ''
+      },
       token: null,
       showAuthPanel: false,
       isRegistering: false,
@@ -134,7 +209,6 @@ export default {
         username: '',
         password: ''
       },
-      selectedMonument: null
     };
   },
   created() {
@@ -145,15 +219,21 @@ export default {
     }
   },
   methods: {
-    showDetailsPanel(monumentData) {
+    async showDetailsPanel(monumentData) {
+      console.log('KROK 1: Wywołano showDetailsPanel. Dane pomnika:', monumentData);
       this.selectedMonument = monumentData;
       if (this.showAddForm) {
         this.handleOpenAddPanel(false);
       }
+      // Po otwarciu panelu, od razu pobieramy historię
+      await this.fetchConservationHistory(monumentData.id);
     },
 
     closeDetailsPanel() {
       this.selectedMonument = null;
+      this.conservationHistory = [];
+      this.showConservationForm = false;
+      this.newConservationEntry = { conservation_date: '', type_of_work: '', notes: '' };
     },
     openLoginPanel() {
       this.isRegistering = false;
@@ -180,6 +260,7 @@ export default {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(this.auth)
         });
+        console.log('KROK 5: Frontend odebrał dane z API:', data);
         const data = await response.json();
 
         if (!response.ok) {
@@ -196,6 +277,7 @@ export default {
           this.toast.success('Zalogowano pomyślnie!');
           this.showAuthPanel = false;
           this.auth = { username: '', password: '' };
+          console.log('KROK 5b: Stan this.conservationHistory po przypisaniu:', this.conservationHistory);
         }
       } catch (error) {
         this.toast.error(`Błąd: ${error.message}`);
@@ -260,13 +342,11 @@ export default {
           },
           body: JSON.stringify({
               name: this.newMonument.name,
-              // Upewnijmy się, że wysyłamy poprawną nazwę pola
-              description: this.newMonument.historical_context, 
-              year: this.newMonument.year || null, // Wyślij null, jeśli pole jest puste
+              description: this.newMonument.description,
+              year: this.newMonument.year || null,
               author: this.newMonument.author || null,
               last_restoration_date: this.newMonument.last_restoration_date || null,
               status: this.newMonument.status || null,
-              // Backend musi teraz oczekiwać 'location' jako obiektu GeoJSON
               location: {
                   type: 'Point',
                   coordinates: this.newMonument.coordinates
@@ -295,10 +375,59 @@ export default {
 
     cancelAddMonument() {
       this.handleOpenAddPanel(false);
+    },
+    async fetchConservationHistory(monumentId) {
+      console.log(`KROK 2: Wywołano fetchConservationHistory. Próbuję pobrać historię dla ID: ${monumentId}`);
+      if (!monumentId) return;
+      try {
+        const response = await fetch(`http://localhost:3000/api/monuments/${monumentId}/history`);
+        if (!response.ok) {
+          throw new Error('Nie udało się pobrać historii konserwacji.');
+        }
+        this.conservationHistory = await response.json();
+      } catch (error) {
+        this.toast.error(error.message);
+        this.conservationHistory = []; // Wyczyść na wypadek błędu
+      }
+    },
+
+    // Metoda do dodawania nowego wpisu do historii
+    async addConservationEntry() {
+      if (!this.selectedMonument) return;
+      try {
+        const response = await fetch(`http://localhost:3000/api/monuments/${this.selectedMonument.id}/history`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${this.token}` // Wymagana autoryzacja
+          },
+          body: JSON.stringify(this.newConservationEntry)
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Nie udało się zapisać wpisu.');
+        }
+
+        this.toast.success('Wpis konserwacji został dodany!');
+        this.showConservationForm = false; // Ukryj formularz po sukcesie
+        this.newConservationEntry = { conservation_date: '', type_of_work: '', notes: '' }; // Wyczyść formularz
+        
+        // Odśwież listę, aby zobaczyć nowy wpis
+        await this.fetchConservationHistory(this.selectedMonument.id);
+      } catch (error) {
+        this.toast.error(error.message);
+      }
+    },
+    handleLoginRequest() {
+      this.toast.info('Zaloguj się, aby wykonać tę akcję.');
+      this.openLoginPanel();
     }
   }
 };
 </script>
+
+
 
 <style>
 #app, body, html {
@@ -390,5 +519,126 @@ button[type="button"]:hover { background-color: #5a6268; }
 }
 .auth-toggle a:hover {
   text-decoration: underline;
+}
+
+.details-panel {
+  position: fixed;
+  top: 0;
+  right: -350px; /* Taka sama szerokość jak panel dodawania */
+  width: 300px;
+  height: 100%;
+  background-color: white;
+  box-shadow: -5px 0 15px rgba(0,0,0,0.2);
+  padding: 20px;
+  box-sizing: border-box;
+  transition: right 0.3s ease-in-out;
+  z-index: 1000;
+  text-align: left;
+  overflow-y: auto; /* Pozwala na przewijanie, jeśli treść jest długa */
+}
+.details-panel.is-open {
+  right: 0;
+}
+.details-panel h2 {
+  margin-top: 0;
+  margin-bottom: 15px;
+  color: #333;
+  border-bottom: 2px solid #eee;
+  padding-bottom: 10px;
+}
+.details-description {
+  font-size: 0.95em;
+  line-height: 1.5;
+  color: #555;
+  margin-bottom: 20px;
+}
+.details-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px; /* Odstęp między elementami listy */
+  margin-bottom: 25px;
+}
+.detail-item {
+  display: flex;
+  flex-direction: column;
+  border-bottom: 1px solid #f0f0f0;
+  padding-bottom: 8px;
+}
+.detail-label {
+  font-weight: bold;
+  font-size: 0.8em;
+  color: #888;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+.detail-value {
+  font-size: 1em;
+  color: #333;
+}
+
+.section-divider {
+  border: none;
+  border-top: 1px solid #e0e0e0;
+  margin: 25px 0;
+}
+.conservation-section h4 {
+  margin-top: 0;
+  margin-bottom: 15px;
+  color: #333;
+}
+.history-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 20px 0;
+  max-height: 300px; /* Ograniczenie wysokości listy */
+  overflow-y: auto; /* Pasek przewijania dla długiej listy */
+}
+.history-item {
+  background-color: #f8f9fa;
+  border-radius: 6px;
+  padding: 10px;
+  margin-bottom: 8px;
+  border: 1px solid #e9ecef;
+}
+.history-date {
+  font-size: 0.8em;
+  color: #6c757d;
+  display: block;
+  margin-bottom: 4px;
+}
+.history-work-type {
+  font-weight: 600;
+  color: #343a40;
+}
+.history-notes {
+  font-size: 0.9em;
+  color: #495057;
+  margin: 5px 0 0 0;
+  white-space: pre-wrap;
+}
+.no-history-message {
+    color: #6c757d;
+    font-style: italic;
+    padding: 15px;
+    background-color: #f8f9fa;
+    border-radius: 6px;
+    text-align: center;
+}
+.add-entry-button {
+  width: 100%;
+  margin-bottom: 15px;
+  background-color: #28a745; /* Zielony kolor dla dodawania */
+}
+.add-entry-button:hover {
+    background-color: #218838;
+}
+.conservation-form {
+    background-color: #f8f9fa;
+    padding: 15px;
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
+}
+.close-main-panel-button {
+    margin-top: 20px;
 }
 </style>

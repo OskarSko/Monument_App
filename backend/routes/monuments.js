@@ -1,11 +1,21 @@
-// routes/monuments.js
 const express = require('express');
 const router = express.Router();
+
+// Importujemy kontrolery i middleware
 const { getAllMonuments, addMonument } = require('../controllers/monumentController');
-const { protect } = require('../middleware/authMiddleware');
-// Publiczna trasa do pobierania wszystkich pomników
+const { getConservationHistory, addConservationEntry } = require('../controllers/conservationController');
+const authenticateToken = require('../middleware/authenticateToken');
+
+// Trasy publiczne
+// GET /api/monuments -> getAllMonuments
 router.get('/', getAllMonuments);
-// Prywatna, chroniona trasa do dodawania nowego pomnika
-// Middleware 'protect' uruchomi się przed kontrolerem 'addMonument'
-router.post('/', protect, addMonument);
+// GET /api/monuments/:id/history -> getConservationHistory
+router.get('/:id/history', getConservationHistory);
+
+// Trasy chronione (wymagające tokena)
+// POST /api/monuments -> addMonument
+router.post('/', authenticateToken, addMonument);
+// POST /api/monuments/:id/history -> addConservationEntry
+router.post('/:id/history', authenticateToken, addConservationEntry);
+
 module.exports = router;

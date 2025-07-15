@@ -3,11 +3,17 @@ const pool = require('../config/db');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
+
 // Funkcja pomocnicza do generowania tokena
-const generateToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRES_IN
-  });
+const generateToken = (user) => {
+  // Tworzymy payload z polami 'userId' i 'username'
+  return jwt.sign(
+    { userId: user.id, username: user.username }, 
+    process.env.JWT_SECRET, 
+    {
+      expiresIn: process.env.JWT_EXPIRES_IN || '1h' // Dodaj domyślny czas wygaśnięcia
+    }
+  );
 };
 
 exports.register = async (req, res) => {
@@ -50,16 +56,12 @@ exports.login = async (req, res) => {
         const { rows } = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
         const user = rows[0];
 
-        if (!user) {
+        if (!user || !(await bcrypt.compare(password, user.password_hash))) {
             return res.status(401).json({ error: 'Nieprawidłowe dane logowania.' });
         }
 
-        const isMatch = await bcrypt.compare(password, user.password_hash);
-        if (!isMatch) {
-            return res.status(401).json({ error: 'Nieprawidłowe dane logowania.' });
-        }
-
-        const token = generateToken(user.id);
+        // Przekazujemy cały obiekt 'user' do funkcji generującej token
+        const token = generateToken(user); 
         res.status(200).json({ success: true, token });
 
     } catch (err) {
