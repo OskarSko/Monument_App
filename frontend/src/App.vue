@@ -1,6 +1,5 @@
 <template>
   <div id="app">
-    <!-- NOWY FRAGMENT: Panel logowania/rejestracji jako nakładka -->
     <div v-if="showAuthPanel" class="auth-overlay">
       <div class="auth-panel">
         <h2>{{ isRegistering ? 'Rejestracja nowego konta' : 'Logowanie' }}</h2>
@@ -27,7 +26,6 @@
 
     <div class="map-wrapper">
       <MapView
-        v-once 
         ref="mapViewComponent"
         :is-add-mode-active="addModeActive"
         :is-user-logged-in="!!token" 
@@ -36,18 +34,15 @@
         @monument-selected="showDetailsPanel"
         @request-login="handleLoginRequest"
       />
-      <!-- NOWY FRAGMENT: Przyciski kontroli logowania w rogu mapy -->
       <div class="auth-controls">
         <button v-if="!token" @click="openLoginPanel">Zaloguj</button>
         <button v-if="token" @click="logout">Wyloguj</button>
       </div>
     </div>
 
-    <!-- Panel dodawania pomnika (bez zmian w kodzie HTML) -->
     <div class="add-monument-panel" :class="{ 'is-open': showAddForm }">
       <h2>Dodaj nowy pomnik</h2>
       <form @submit.prevent="addMonument">
-        <!-- ... reszta formularza pozostaje bez zmian ... -->
         <div class="form-group">
           <label for="name">Nazwa:</label>
           <input type="text" id="name" v-model="newMonument.name" required />
@@ -56,18 +51,44 @@
           <label for="description">Opis:</label>
           <textarea id="description" v-model="newMonument.description"></textarea>
         </div>
+        <!-- NOWE POLE: Rok -->
+        <div class="form-group">
+          <label for="year">Rok powstania:</label>
+          <input type="number" id="year" v-model.number="newMonument.year" placeholder="np. 1984" />
+        </div>
+        <!-- NOWE POLE: Autor -->
+        <div class="form-group">
+          <label for="author">Autor:</label>
+          <input type="text" id="author" v-model="newMonument.author" />
+        </div>
+        <!-- NOWE POLE: Data ostatniej konserwacji -->
+        <div class="form-group">
+          <label for="last_restoration_date">Data ostatniej konserwacji:</label>
+          <input type="date" id="last_restoration_date" v-model="newMonument.last_restoration_date" />
+        </div>
+        <!-- NOWE POLE: Status (jako lista rozwijana) -->
+        <div class="form-group">
+          <label for="status">Status:</label>
+          <select id="status" v-model="newMonument.status">
+            <option value="">(Wybierz status)</option>
+            <option value="istniejący">Istniejący</option>
+            <option value="zrekonstruowany">Zrekonstruowany</option>
+            <option value="w ruinie">W ruinie</option>
+            <option value="zniszczony">Zniszczony</option>
+            <option value="inny">Inny</option>
+          </select>
+        </div>
         <div class="form-group">
           <label for="coords">Współrzędne (dł., szer.):</label>
           <input type="text" id="coords" v-model="newMonument.coordsInput" placeholder="np. 19.4000, 54.1667" required />
           <small>Możesz też kliknąć na mapie, aby ustawić współrzędne.</small>
         </div>
-        <button type="submit">Dodaj pomnik</button>
+        <button type="submit" :disabled="!token">Dodaj pomnik</button>
         <button type="button" @click="cancelAddMonument">Anuluj</button>
       </form>
     </div>
 
     <div class="details-panel" :class="{ 'is-open': selectedMonument }">
-      <!-- `v-if` upewnia się, że nie próbujemy odczytać danych z `null` -->
       <div v-if="selectedMonument">
         <h2>{{ selectedMonument.name }}</h2>
         <p class="details-description">{{ selectedMonument.description || 'Brak opisu dla tego miejsca.' }}</p>
@@ -81,6 +102,7 @@
 
   </div>
 </template>
+
 
 <script>
 import MapView from './components/MapView.vue';
@@ -105,21 +127,17 @@ export default {
         coordsInput: '',
         coordinates: []
       },
-      // --- NOWY STAN DO OBSŁUGI LOGOWANIA ---
-      token: null, // Przechowuje token JWT po zalogowaniu
-      showAuthPanel: false, // Kontroluje widoczność panelu logowania
-      isRegistering: false, // Przełącza między formularzem logowania a rejestracji
-      auth: { // Dane z formularza logowania/rejestracji
+      token: null,
+      showAuthPanel: false,
+      isRegistering: false,
+      auth: {
         username: '',
         password: ''
       },
       selectedMonument: null
     };
   },
-  // --- NOWA METODA CYKLU ŻYCIA ---
-  // Uruchamia się przy starcie aplikacji
   created() {
-    // Sprawdź, czy w pamięci przeglądarki jest zapisany token z poprzedniej sesji
     const storedToken = localStorage.getItem('authToken');
     if (storedToken) {
       this.token = storedToken;
@@ -129,7 +147,6 @@ export default {
   methods: {
     showDetailsPanel(monumentData) {
       this.selectedMonument = monumentData;
-      // Upewnij się, że panel dodawania jest zamknięty
       if (this.showAddForm) {
         this.handleOpenAddPanel(false);
       }
@@ -139,15 +156,14 @@ export default {
       this.selectedMonument = null;
     },
     openLoginPanel() {
-      this.isRegistering = false; // Domyślnie pokazuj logowanie
+      this.isRegistering = false;
       this.showAuthPanel = true;
     },
 
     logout() {
       this.token = null;
-      localStorage.removeItem('authToken'); // Wyczyść token z pamięci przeglądarki
+      localStorage.removeItem('authToken');
       this.toast.success('Wylogowano pomyślnie.');
-      // Jeśli panel dodawania był otwarty, zamknij go
       if (this.showAddForm) {
         this.handleOpenAddPanel(false);
       }
@@ -172,29 +188,25 @@ export default {
 
         if (this.isRegistering) {
           this.toast.success('Rejestracja pomyślna! Teraz możesz się zalogować.');
-          this.isRegistering = false; // Automatycznie przełącz na widok logowania
-          this.auth.password = ''; // Wyczyść pole hasła dla bezpieczeństwa
+          this.isRegistering = false;
+          this.auth.password = '';
         } else {
-          // Logowanie zakończone sukcesem
           this.token = data.token;
-          localStorage.setItem('authToken', data.token); // Zapisz token
+          localStorage.setItem('authToken', data.token);
           this.toast.success('Zalogowano pomyślnie!');
-          this.showAuthPanel = false; // Zamknij panel
-          this.auth = { username: '', password: '' }; // Wyczyść formularz
+          this.showAuthPanel = false;
+          this.auth = { username: '', password: '' };
         }
       } catch (error) {
         this.toast.error(`Błąd: ${error.message}`);
       }
     },
     
-    // --- ZMODYFIKOWANA METODA ---
-    // Ta metoda jest wywoływana, gdy MapView emituje 'add-monument-mode'
     handleOpenAddPanel(isActive) {
-      // ZABEZPIECZENIE: Jeśli użytkownik chce włączyć tryb dodawania, ale nie jest zalogowany
       if (isActive && !this.token) {
         this.toast.warning('Musisz być zalogowany, aby dodać nowy pomnik.');
-        this.openLoginPanel(); // Otwórz panel logowania zamiast panelu dodawania
-        return; // Przerwij dalsze wykonywanie funkcji
+        this.openLoginPanel();
+        return;
       }
 
       if (isActive) {
@@ -209,7 +221,16 @@ export default {
     },
 
     resetForm() {
-      this.newMonument = { name: '', description: '', coordsInput: '', coordinates: [] };
+      this.newMonument = {
+        name: '',
+        historical_context: '',
+        year: null,
+        author: '',
+        last_restoration_date: null,
+        status: '',
+        coordsInput: '',
+        coordinates: []
+      };
     },
     
     handleMapClick(lngLat) {
@@ -235,20 +256,28 @@ export default {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            // Dołącz token do nagłówka autoryzacji
             'Authorization': `Bearer ${this.token}`
           },
           body: JSON.stringify({
-            name: this.newMonument.name,
-            description: this.newMonument.description,
-            coordinates: this.newMonument.coordinates
+              name: this.newMonument.name,
+              // Upewnijmy się, że wysyłamy poprawną nazwę pola
+              description: this.newMonument.historical_context, 
+              year: this.newMonument.year || null, // Wyślij null, jeśli pole jest puste
+              author: this.newMonument.author || null,
+              last_restoration_date: this.newMonument.last_restoration_date || null,
+              status: this.newMonument.status || null,
+              // Backend musi teraz oczekiwać 'location' jako obiektu GeoJSON
+              location: {
+                  type: 'Point',
+                  coordinates: this.newMonument.coordinates
+              }
           })
         });
 
         if (!response.ok) {
           const errorData = await response.json();
           if (response.status === 401) {
-             this.logout(); // Token jest nieważny lub wygasł, wyloguj
+             this.logout();
              this.toast.error("Twoja sesja wygasła. Proszę zalogować się ponownie.");
              return;
           }
@@ -257,7 +286,7 @@ export default {
         
         this.$refs.mapViewComponent.fetchMonumentsAndAddMarkers();
         this.toast.success('Pomnik dodany pomyślnie!');
-        this.handleOpenAddPanel(false); // Zamykamy panel
+        this.handleOpenAddPanel(false);
 
       } catch (error) {
         this.toast.error(`Błąd podczas dodawania pomnika: ${error.message}`);
@@ -272,7 +301,6 @@ export default {
 </script>
 
 <style>
-/* ... Twoje istniejące style pozostają bez zmian ... */
 #app, body, html {
   font-family: Avenir, Helvetica, Arial, sans-serif;
   height: 100vh;
@@ -318,11 +346,11 @@ button:hover { background-color: #0056b3; }
 button[type="button"] { background-color: #6c757d; }
 button[type="button"]:hover { background-color: #5a6268; }
 
-/* --- NOWE STYLE DLA PANELU LOGOWANIA --- */
+
 .auth-controls {
   position: absolute;
   bottom: 10px;
-  left: 50px; /* Przesunięcie, aby zrobić miejsce na kontrolki mapy */
+  left: 50px;
   z-index: 500;
 }
 .auth-overlay {
@@ -333,7 +361,7 @@ button[type="button"]:hover { background-color: #5a6268; }
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 2000; /* Wyżej niż panel dodawania */
+  z-index: 2000;
 }
 .auth-panel {
   background: white;

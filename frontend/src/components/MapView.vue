@@ -32,7 +32,8 @@ export default {
       tempMarker: null,
       hoverPopup: new maplibregl.Popup({
         closeButton: false,
-        closeOnClick: false
+        closeOnClick: false,
+        offset: 25
     })
     };
   },
@@ -46,10 +47,12 @@ export default {
       }
     }
   },
+  isUserLoggedIn(newValue, oldValue) {
+      if (newValue !== oldValue) {
+        this.fetchMonumentsAndAddMarkers();
+      }
+  },
   mounted() {
-    // --- POCZĄTEK ZMIANY ---
-    // Zamiast stylu Maptiler, używamy własnej definicji stylu
-    // wskazującej bezpośrednio na kafelki OpenStreetMap.
     this.map = new maplibregl.Map({
       container: 'map',
       style: {
@@ -94,56 +97,95 @@ export default {
 
     this.map.on('error', (e) => console.error('Błąd mapy:', e.error));
   },
-  methods: {
-    // Ta metoda pozostaje bez zmian - jest już poprawnie napisana.
-    fetchMonumentsAndAddMarkers() {
+methods: {
+    // Metoda do czyszczenia markerów przed ponownym załadowaniem
+    clearMarkers() {
       if (this.markers.length > 0) {
         this.markers.forEach(marker => marker.remove());
         this.markers = [];
       }
-      fetch('http://localhost:3000/api/monuments')
-        .then(response => response.json())
-        .then(data => {
-          this.monuments = data;
-          this.monuments.forEach(monument => {
+    },
+    
+    // Zaktualizowana metoda do pobierania i wyświetlania pomników
+    async fetchMonumentsAndAddMarkers() {
+      this.clearMarkers(); // Najpierw czyścimy stare markery
+      try {
+        const response = await fetch('http://localhost:3000/api/monuments');
+        if (!response.ok) {
+          throw new Error('Błąd sieci podczas pobierania pomników');
+        }
+        const data = await response.json();
+        this.monuments = data;
+        this.addMonumentsToMap(); // Następnie dodajemy nowe
+      } catch (error) {
+        console.error('Błąd podczas pobierania lub przetwarzania pomników:', error);
+      }
+    },
+
+    // Metoda do dodawania markerów na mapie
+    addMonumentsToMap() {
+        this.monuments.forEach(monument => {
             if (monument.location && monument.location.coordinates) {
-              const marker = new maplibregl.Marker().setLngLat(monument.location.coordinates).addTo(this.map);
-              this.markers.push(marker);
+                const marker = new maplibregl.Marker().setLngLat(monument.location.coordinates).addTo(this.map);
+                this.markers.push(marker);
 
-              // Pobierz element DOM markera
-              const markerEl = marker.getElement();
-              markerEl.style.cursor = 'pointer';
+                const markerEl = marker.getElement();
+                markerEl.style.cursor = 'pointer';
 
-              // --- NOWA LOGIKA DLA NAJAZDU MYSZKĄ ---
-              markerEl.addEventListener('mouseenter', () => {
-                // Gdy najeżdżamy, pokazujemy popup z samą nazwą
-                this.hoverPopup
-                  .setLngLat(monument.location.coordinates)
-                  .setHTML(`<strong>${monument.name}</strong>`)
-                  .addTo(this.map);
-              });
+                // Popup po najechaniu (hover)
+                markerEl.addEventListener('mouseenter', () => {
+                    const popupContent = this.createPopupContent(monument);
+                    this.hoverPopup
+                        .setLngLat(monument.location.coordinates)
+                        .setHTML(popupContent)
+                        .addTo(this.map);
+                });
 
-              // --- NOWA LOGIKA DLA ZJAZDU MYSZKĄ ---
-              markerEl.addEventListener('mouseleave', () => {
-                this.hoverPopup.remove();
-              });
+                markerEl.addEventListener('mouseleave', () => {
+                    this.hoverPopup.remove();
+                });
 
-              // --- NOWA LOGIKA DLA KLIKNIĘCIA ---
-              markerEl.addEventListener('click', (e) => {
-                e.stopPropagation();
-                // Sprawdzamy stan zalogowania otrzymany z propsa
-                if (this.isUserLoggedIn) {
-                  // Jeśli zalogowany, emitujemy zdarzenie, aby pokazać szczegóły
-                  this.$emit('monument-selected', monument);
-                } else {
-                  // Jeśli niezalogowany, emitujemy zdarzenie z prośbą o logowanie
-                  this.$emit('request-login');
-                }
-              });
+                // Kliknięcie w marker
+                markerEl.addEventListener('click', (e) => {
+                    e.stopPropagation(); // Zapobiega propagacji kliknięcia do mapy
+                    if (this.isUserLoggedIn) {
+                        this.$emit('monument-selected', monument); // Wyślij pełne dane do App.vue
+                    } else {
+                        // Poproś App.vue o otwarcie panelu logowania
+                        this.$emit('request-login');
+                    }
+                });
             }
-          });
-        })
-        .catch(error => console.error('Błąd podczas pobierania pomników:', error));
+        });
+    },
+
+    // NOWA METODA: Dynamicznie tworzy treść HTML dla popupu
+    createPopupContent(monument) {
+      // Dla niezalogowanego użytkownika - prosty widok
+      if (!this.isUserLoggedIn) {
+        return `
+          <div class="monument-popup">
+            <h3 class="popup-title">${monument.name}</h3>
+          </div>
+        `;
+      }
+      
+      // Dla zalogowanego użytkownika - widok szczegółowy
+      const yearInfo = monument.year ? `<p><strong>Rok:</strong> ${monument.year}</p>` : '';
+      const authorInfo = monument.author ? `<p><strong>Autor:</strong> ${monument.author}</p>` : '';
+      const statusInfo = monument.status ? `<p><strong>Status:</strong> ${monument.status}</p>` : '';
+
+      return `
+        <div class="monument-popup">
+          <h3 class="popup-title">${monument.name}</h3>
+          <div class="popup-details">
+            ${yearInfo}
+            ${authorInfo}
+            ${statusInfo}
+          </div>
+          <p class="popup-click-prompt">Kliknij, aby otworzyć panel szczegółów.</p>
+        </div>
+      `;
     },
 
     openAddMonumentPanel() {
@@ -159,7 +201,6 @@ export default {
 </script>
 
 <style scoped>
-/* Style pozostają bez zmian */
 .map-container {
   position: relative;
   height: 100%;
