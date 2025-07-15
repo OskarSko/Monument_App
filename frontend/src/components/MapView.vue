@@ -161,19 +161,24 @@ methods: {
 
     // NOWA METODA: Dynamicznie tworzy treść HTML dla popupu
     createPopupContent(monument) {
-      // Dla niezalogowanego użytkownika - prosty widok
-      if (!this.isUserLoggedIn) {
-        return `
-          <div class="monument-popup">
-            <h3 class="popup-title">${monument.name}</h3>
-          </div>
-        `;
-      }
-      
-      // Dla zalogowanego użytkownika - widok szczegółowy
+
       const yearInfo = monument.year ? `<p><strong>Rok:</strong> ${monument.year}</p>` : '';
       const authorInfo = monument.author ? `<p><strong>Autor:</strong> ${monument.author}</p>` : '';
       const statusInfo = monument.status ? `<p><strong>Status:</strong> ${monument.status}</p>` : '';
+
+      if (!this.isUserLoggedIn) {
+        return `
+          <div class="monument-popup">
+          <h3 class="popup-title">${monument.name}</h3>
+          <div class="popup-details">
+            ${yearInfo}
+            ${authorInfo}
+            ${statusInfo}
+          </div>
+        </div>
+        `;
+      }
+    
 
       return `
         <div class="monument-popup">
