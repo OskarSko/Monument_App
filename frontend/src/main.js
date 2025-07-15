@@ -1,8 +1,9 @@
 import { createApp } from 'vue';
 import App from './App.vue';
-import Toast, { POSITION } from 'vue-toastification';
-// Importuj style CSS dla toastów
+import Toast, { useToast, POSITION } from 'vue-toastification';
 import 'vue-toastification/dist/index.css';
+import './styles/main.scss'
+import 'maplibre-gl/dist/maplibre-gl.css';
 
 const app = createApp(App);
 
@@ -21,8 +22,7 @@ const options = {
     icon: true,
     rtl: false
 };
-
-// Zarejestruj wtyczkę w aplikacji Vue
 app.use(Toast, options);
-
+const toast = useToast();
+app.provide('toast', toast);
 app.mount('#app');

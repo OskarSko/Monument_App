@@ -1,6 +1,8 @@
 <template>
   <div class="map-container" :class="{ 'add-mode': isAddModeActive }">
-    <div id="map" style="height: 100%; width: 100%;"></div>
+    <!-- Kontener mapy, jego style są teraz w sekcji <style> -->
+    <div id="map"></div>
+    <!-- Przycisk do dodawania, bez zmian -->
     <button @click="openAddMonumentPanel" class="add-button" title="Dodaj nowy pomnik">
       <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
     </button>
@@ -9,7 +11,6 @@
 
 <script>
 import maplibregl from 'maplibre-gl';
-import 'maplibre-gl/dist/maplibre-gl.css';
 
 export default {
   name: 'MapView',
@@ -23,10 +24,11 @@ export default {
       default: false
     }
   },
+  // Wstrzykujemy 'toast' aby móc wyświetlać powiadomienia, np. o błędach
+  inject: ['toast'],
   data() {
     return {
       map: null,
-      elblagCoords: [19.4000, 54.1667],
       monuments: [],
       markers: [],
       tempMarker: null,
@@ -34,151 +36,128 @@ export default {
         closeButton: false,
         closeOnClick: false,
         offset: 25
-    })
+      })
     };
   },
+  // WAŻNE: Poprawiona sekcja watch
   watch: {
-    isAddModeActive(newValue) {
-      if (newValue === false) {
-        if (this.tempMarker) {
-          this.tempMarker.remove();
-          this.tempMarker = null;
-        }
+    isAddModeActive(isAdding) {
+      if (!isAdding && this.tempMarker) {
+        this.tempMarker.remove();
+        this.tempMarker = null;
       }
+    },
+    // To jest teraz poprawny watcher, który zareaguje na zmianę statusu logowania
+    isUserLoggedIn() {
+      // Po prostu odświeżamy markery, aby pokazać/ukryć prompt do kliknięcia
+      this.fetchMonumentsAndAddMarkers();
     }
   },
-  isUserLoggedIn(newValue, oldValue) {
-      if (newValue !== oldValue) {
-        this.fetchMonumentsAndAddMarkers();
-      }
-  },
   mounted() {
-    this.map = new maplibregl.Map({
-      container: 'map',
-      style: {
-        version: 8,
-        sources: {
-          osm: {
-            type: 'raster',
-            tiles: ['https://a.tile.openstreetmap.org/{z}/{x}/{y}.png'],
-            tileSize: 256,
-            attribution: '© OpenStreetMap Contributors'
-          }
-        },
-        layers: [
-          {
-            id: 'osm',
-            type: 'raster',
-            source: 'osm'
-          }
-        ]
-      },
-      center: this.elblagCoords,
-      zoom: 13
-    });
-
-    this.map.addControl(new maplibregl.NavigationControl(), 'bottom-left');
-
-    this.map.on('load', () => {
-      this.fetchMonumentsAndAddMarkers();
-
-      this.map.on('click', (e) => {
-        if (this.isAddModeActive) {
-          if (this.tempMarker) {
-            this.tempMarker.remove();
-          }
-          this.tempMarker = new maplibregl.Marker({ color: '#d9534f' })
-            .setLngLat(e.lngLat)
-            .addTo(this.map);
-          this.$emit('map-clicked', e.lngLat);
-        }
-      });
-    });
-
-    this.map.on('error', (e) => console.error('Błąd mapy:', e.error));
+    this.initMap();
   },
-methods: {
-    // Metoda do czyszczenia markerów przed ponownym załadowaniem
-    clearMarkers() {
-      if (this.markers.length > 0) {
-        this.markers.forEach(marker => marker.remove());
-        this.markers = [];
-      }
+  methods: {
+    initMap() {
+      this.map = new maplibregl.Map({
+        container: 'map',
+        style: {
+          version: 8,
+          sources: {
+            osm: {
+              type: 'raster',
+              tiles: ['https://a.tile.openstreetmap.org/{z}/{x}/{y}.png'],
+              tileSize: 256,
+              attribution: '© OpenStreetMap Contributors'
+            }
+          },
+          layers: [{ id: 'osm', type: 'raster', source: 'osm' }]
+        },
+        center: [19.4000, 54.1667], // Elbląg
+        zoom: 13
+      });
+
+      this.map.addControl(new maplibregl.NavigationControl(), 'bottom-left');
+
+      this.map.on('load', () => {
+        this.fetchMonumentsAndAddMarkers();
+
+        this.map.on('click', (e) => {
+          if (this.isAddModeActive) {
+            if (this.tempMarker) {
+              this.tempMarker.remove();
+            }
+            this.tempMarker = new maplibregl.Marker({ color: '#d9534f' })
+              .setLngLat(e.lngLat)
+              .addTo(this.map);
+            this.$emit('map-clicked', e.lngLat);
+          }
+        });
+      });
+
+      this.map.on('error', (e) => {
+        console.error('Błąd mapy:', e.error)
+        this.toast.error('Wystąpił błąd podczas ładowania mapy.');
+      });
     },
     
-    // Zaktualizowana metoda do pobierania i wyświetlania pomników
+    clearMarkers() {
+      this.markers.forEach(marker => marker.remove());
+      this.markers = [];
+    },
+    
     async fetchMonumentsAndAddMarkers() {
-      this.clearMarkers(); // Najpierw czyścimy stare markery
+      this.clearMarkers();
       try {
         const response = await fetch('http://localhost:3000/api/monuments');
-        if (!response.ok) {
-          throw new Error('Błąd sieci podczas pobierania pomników');
-        }
-        const data = await response.json();
-        this.monuments = data;
-        this.addMonumentsToMap(); // Następnie dodajemy nowe
+        if (!response.ok) throw new Error('Błąd sieci podczas pobierania pomników');
+        
+        this.monuments = await response.json();
+        this.addMonumentsToMap();
       } catch (error) {
-        console.error('Błąd podczas pobierania lub przetwarzania pomników:', error);
+        console.error('Błąd podczas pobierania pomników:', error);
+        this.toast.error(error.message);
       }
     },
 
-    // Metoda do dodawania markerów na mapie
     addMonumentsToMap() {
-        this.monuments.forEach(monument => {
-            if (monument.location && monument.location.coordinates) {
-                const marker = new maplibregl.Marker().setLngLat(monument.location.coordinates).addTo(this.map);
-                this.markers.push(marker);
+      this.monuments.forEach(monument => {
+        if (monument.location?.coordinates) {
+          const marker = new maplibregl.Marker()
+            .setLngLat(monument.location.coordinates)
+            .addTo(this.map);
+            
+          this.markers.push(marker);
 
-                const markerEl = marker.getElement();
-                markerEl.style.cursor = 'pointer';
+          const markerEl = marker.getElement();
+          markerEl.style.cursor = 'pointer';
 
-                // Popup po najechaniu (hover)
-                markerEl.addEventListener('mouseenter', () => {
-                    const popupContent = this.createPopupContent(monument);
-                    this.hoverPopup
-                        .setLngLat(monument.location.coordinates)
-                        .setHTML(popupContent)
-                        .addTo(this.map);
-                });
+          markerEl.addEventListener('mouseenter', () => {
+            this.hoverPopup
+              .setLngLat(monument.location.coordinates)
+              .setHTML(this.createPopupContent(monument))
+              .addTo(this.map);
+          });
 
-                markerEl.addEventListener('mouseleave', () => {
-                    this.hoverPopup.remove();
-                });
+          markerEl.addEventListener('mouseleave', () => {
+            this.hoverPopup.remove();
+          });
 
-                // Kliknięcie w marker
-                markerEl.addEventListener('click', (e) => {
-                    e.stopPropagation(); // Zapobiega propagacji kliknięcia do mapy
-                    if (this.isUserLoggedIn) {
-                        this.$emit('monument-selected', monument); // Wyślij pełne dane do App.vue
-                    } else {
-                        // Poproś App.vue o otwarcie panelu logowania
-                        this.$emit('request-login');
-                    }
-                });
-            }
-        });
+          markerEl.addEventListener('click', (e) => {
+          e.stopPropagation();
+          
+          if (this.isUserLoggedIn) {
+            // Użytkownik zalogowany - można otworzyć panel szczegółów
+            this.$emit('monument-selected', monument);
+        }});
+        }
+      });
     },
 
-    // NOWA METODA: Dynamicznie tworzy treść HTML dla popupu
     createPopupContent(monument) {
-
       const yearInfo = monument.year ? `<p><strong>Rok:</strong> ${monument.year}</p>` : '';
       const authorInfo = monument.author ? `<p><strong>Autor:</strong> ${monument.author}</p>` : '';
       const statusInfo = monument.status ? `<p><strong>Status:</strong> ${monument.status}</p>` : '';
-
-      if (!this.isUserLoggedIn) {
-        return `
-          <div class="monument-popup">
-          <h3 class="popup-title">${monument.name}</h3>
-          <div class="popup-details">
-            ${yearInfo}
-            ${authorInfo}
-            ${statusInfo}
-          </div>
-        </div>
-        `;
-      }
-    
+      const clickPrompt = this.isUserLoggedIn ? `<p class="popup-click-prompt">Kliknij, aby otworzyć panel szczegółów.</p>` : `<p class="popup-click-prompt">Zaloguj się, by zobaczyć szczegóły.</p>`;
 
       return `
         <div class="monument-popup">
@@ -188,9 +167,8 @@ methods: {
             ${authorInfo}
             ${statusInfo}
           </div>
-          <p class="popup-click-prompt">Kliknij, aby otworzyć panel szczegółów.</p>
-        </div>
-      `;
+          ${clickPrompt}
+        </div>`;
     },
 
     openAddMonumentPanel() {
@@ -206,14 +184,16 @@ methods: {
 </script>
 
 <style scoped>
-.map-container {
+.map-container, #map {
   position: relative;
   height: 100%;
   width: 100%;
 }
-.map-container.add-mode #map {
-  cursor: crosshair !important;
+
+.map-container.add-mode {
+  cursor: crosshair;
 }
+
 .add-button {
   position: absolute;
   top: 10px;
@@ -229,15 +209,36 @@ methods: {
   border-radius: 8px;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
   cursor: pointer;
-  transition: all 0.2s ease-in-out;
+  padding: 0; /* Dodano dla pewności */
+  margin: 0; /* Dodano dla pewności */
 }
+
 .add-button svg {
   color: #333;
 }
+
 .add-button:hover {
   background-color: #f8f9fa;
   border-color: #a0a0a0;
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Style dla popupu, można je przenieść do globalnego CSS jeśli będą reużywane */
+:deep(.monument-popup .popup-title) {
+  margin: 0 0 5px 0;
+  color: #005a8d;
+}
+:deep(.monument-popup .popup-details p) {
+  margin: 0;
+  font-size: 13px;
+}
+:deep(.monument-popup .popup-click-prompt) {
+  margin-top: 8px;
+  font-style: italic;
+  font-size: 12px;
+  color: #555;
+  border-top: 1px solid #eee;
+  padding-top: 5px;
 }
 </style>

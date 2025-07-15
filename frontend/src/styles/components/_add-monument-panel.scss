@@ -1,0 +1,25 @@
+@import '../variables';
+
+
+
+.add-monument-panel {
+  h2 {
+    margin-top: 0;
+    margin-bottom: 20px;
+  }
+
+  form {
+    button {
+      margin-top: 10px;
+    }
+  }
+
+  .form-group {
+    small {
+      font-size: 0.8em;
+      color: $text-color-muted;
+      margin-top: 4px;
+      display: block;
+    }
+  }
+}

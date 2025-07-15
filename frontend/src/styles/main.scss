@@ -1,0 +1,91 @@
+@import 'variables';
+
+body, html {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+#app {
+  font-family: $font-family-main;
+  color: $text-color;
+}
+
+.map-wrapper {
+  position: absolute; // Pozycjonujemy go absolutnie
+  top: 0;
+  left: 0;
+  width: 100vw;       // 100% szerokości okna
+  height: 100vh;      // 100% wysokości okna
+  z-index: 1;         // Upewniamy się, że jest na spodzie
+}
+
+.auth-controls {
+  position: absolute;
+  bottom: 10px;
+  left: 50px;
+  z-index: 10;
+}
+
+button {
+  background-color: $primary-color;
+  color: white;
+  padding: 10px 15px;
+  border: none;
+  border-radius: $border-radius;
+  cursor: pointer;
+  margin-right: 10px;
+  transition: background-color 0.2s;
+
+  &:hover {
+    background-color: $primary-color-hover;
+  }
+
+  &[type="button"] {
+    background-color: $secondary-color;
+    &:hover {
+      background-color: $secondary-color-hover;
+    }
+  }
+}
+
+.form-group {
+  margin-bottom: 15px;
+  label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+  }
+  input[type="text"],
+  input[type="password"],
+  input[type="date"],
+  input[type="number"],
+  textarea,
+  select {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: $border-radius;
+    box-sizing: border-box;
+  }
+}
+
+.side-panel {
+  position: fixed;
+  top: 0;
+  width: $panel-width;
+  height: 100%;
+  background-color: $panel-bg;
+  box-shadow: -5px 0 15px rgba(0,0,0,0.2);
+  padding: 20px;
+  box-sizing: border-box;
+  transition: right 0.3s ease-in-out;
+  z-index: 1000; // Najwyższy z-index, aby były na samym wierzchu
+  text-align: left;
+  overflow-y: auto;
+  right: $panel-width-negative;
+
+  &.is-open {
+    right: 0;
+  }
+}
