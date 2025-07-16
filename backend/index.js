@@ -30,3 +30,4 @@ app.use('/api/auth', authRoutes);
 app.listen(port, () => {
   console.log(`Backend działa na http://localhost:${port}`);
 });
+

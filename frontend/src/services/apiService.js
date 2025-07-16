@@ -50,4 +50,19 @@ export default {
   addConservationEntry(monumentId, entryData) {
     return request(`/monuments/${monumentId}/history`, { method: 'POST', body: JSON.stringify(entryData) });
   },
+  // --- NOWA FUNKCJA DO EDYCJI ---
+  /**
+   * Aktualizuje istniejący wpis w historii konserwacji.
+   * @param {number} entryId - ID konkretnego wpisu, który edytujemy.
+   * @param {object} entryData - Nowe dane dla wpisu.
+   */
+  updateConservationEntry(entryId, entryData) {
+    // ZMIANA: Dodano '/monuments' na początku ścieżki
+    return request(`/monuments/history/${entryId}`, { method: 'PUT', body: JSON.stringify(entryData) });
+  },
+
+  deleteConservationEntry(entryId) {
+    // ZMIANA: Dodano '/monuments' na początku ścieżki
+    return request(`/monuments/history/${entryId}`, { method: 'DELETE' });
+  },
 };

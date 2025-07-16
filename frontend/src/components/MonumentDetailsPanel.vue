@@ -42,13 +42,45 @@
         
         <!-- Lista wpisów -->
         <ul v-if="conservationHistory.length > 0" class="history-list">
+          <!-- ZMIANA: Pętla iterująca po historii -->
           <li v-for="entry in conservationHistory" :key="entry.id" class="history-item">
-            <span class="history-date">{{ new Date(entry.conservation_date).toLocaleDateString() }}</span>
-            <strong class="history-work-type">{{ entry.type_of_work }}</strong>
-            <p v-if="entry.notes" class="history-notes">{{ entry.notes }}</p>
+            
+            <!-- NOWA SEKCJA: Formularz edycji (widoczny tylko dla edytowanego wpisu) -->
+            <div v-if="editingEntryId === entry.id" class="conservation-form edit-form">
+              <div class="form-group">
+                <label :for="'edit-date-' + entry.id">Data pracy:</label>
+                <input :id="'edit-date-' + entry.id" type="date" v-model="editFormData.conservation_date" required />
+              </div>
+              <div class="form-group">
+                <label :for="'edit-work-' + entry.id">Rodzaj pracy:</label>
+                <input :id="'edit-work-' + entry.id" type="text" v-model="editFormData.type_of_work" required />
+              </div>
+              <div class="form-group">
+                <label :for="'edit-notes-' + entry.id">Uwagi:</label>
+                <textarea :id="'edit-notes-' + entry.id" v-model="editFormData.notes"></textarea>
+              </div>
+              <div class="form-actions">
+                <button @click="handleUpdate" class="btn-save">Zapisz zmiany</button>
+                <button @click="cancelEdit" class="btn-cancel">Anuluj</button>
+              </div>
+            </div>
+
+            <!-- ZMIANA: Widok standardowy (widoczny, gdy wpis NIE jest edytowany) -->
+            <div v-else class="history-entry-content">
+              <div class="entry-info">
+                <span class="history-date">{{ new Date(entry.conservation_date).toLocaleDateString() }}</span>
+                <strong class="history-work-type">{{ entry.type_of_work }}</strong>
+                <p v-if="entry.notes" class="history-notes">{{ entry.notes }}</p>
+              </div>
+              <!-- NOWA SEKCJA: Przyciski akcji -->
+              <div class="entry-actions">
+                <button @click="startEdit(entry)" class="btn-edit">Edytuj</button>
+                <button @click="handleDelete(entry.id)" class="btn-delete">Usuń</button>
+              </div>
+            </div>
+
           </li>
         </ul>
-        <p v-else class="no-history-message">Brak wpisów w historii konserwacji.</p>
 
         <button v-if="!showConservationForm" @click="showConservationForm = true" class="add-entry-button">
           Dodaj nowy wpis
@@ -109,6 +141,8 @@ export default {
         type_of_work: '',
         notes: ''
       },
+      editingEntryId: null, // Przechowuje ID aktualnie edytowanego wpisu
+      editFormData: {}
     };
   },
   watch: {
@@ -170,6 +204,51 @@ export default {
         this.toast.error(`Błąd: ${error.message}`);
       }
     },
+    startEdit(entry) {
+      // Ustawia, który wpis edytujemy
+      this.editingEntryId = entry.id;
+      // Kopiuje dane wpisu do formularza edycji, aby uniknąć modyfikacji oryginału
+      // .slice(0, 10) formatuje datę do 'YYYY-MM-DD', wymaganego przez <input type="date">
+      this.editFormData = { 
+        ...entry, 
+        conservation_date: entry.conservation_date.slice(0, 10) 
+      };
+      // Ukryj formularz dodawania, jeśli był otwarty
+      this.showConservationForm = false;
+    },
+    cancelEdit() {
+      // Resetuje stan edycji
+      this.editingEntryId = null;
+      this.editFormData = {};
+    },
+    async handleUpdate() {
+      if (!this.editingEntryId) return;
+      try {
+        const updatedEntry = await apiService.updateConservationEntry(this.editingEntryId, this.editFormData);
+        // Znajdź indeks edytowanego wpisu w lokalnej tablicy
+        const index = this.conservationHistory.findIndex(e => e.id === this.editingEntryId);
+        if (index !== -1) {
+          // Zaktualizuj wpis, aby zmiana była od razu widoczna
+          this.conservationHistory.splice(index, 1, updatedEntry);
+        }
+        this.toast.success('Wpis został zaktualizowany.');
+        this.cancelEdit(); // Wyjdź z trybu edycji
+      } catch (error) {
+        this.toast.error(error.message || 'Błąd podczas aktualizacji wpisu.');
+      }
+    },
+    async handleDelete(entryId) {
+      if (window.confirm('Czy na pewno chcesz usunąć ten wpis?')) {
+        try {
+          await apiService.deleteConservationEntry(entryId);
+          // Usuń wpis z lokalnej tablicy, aby odświeżyć widok
+          this.conservationHistory = this.conservationHistory.filter(e => e.id !== entryId);
+          this.toast.success('Wpis został usunięty.');
+        } catch (error) {
+          this.toast.error(error.message || 'Błąd podczas usuwania wpisu.');
+        }
+      }
+    },
     closePanel() {
       this.$emit('close');
     },
@@ -181,6 +260,7 @@ export default {
         type_of_work: '',
         notes: ''
       };
+      this.cancelEdit();
     }
   }
 };

@@ -60,7 +60,72 @@ const addConservationEntry = async (req, res) => {
   }
 };
 
+const updateConservationEntry = async (req, res) => {
+  // UWAGA: Tutaj 'id' to ID konkretnego wpisu w historii, a nie ID pomnika.
+  const { id } = req.params; 
+  const { conservation_date, type_of_work, notes } = req.body;
+
+  console.log(`--- AKTUALIZUJĘ WPIS W HISTORII O ID: ${id} ---`);
+
+  if (!conservation_date || !type_of_work) {
+    return res.status(400).json({ error: 'Data i rodzaj pracy są wymagane.' });
+  }
+
+  try {
+    const query = `
+      UPDATE conservation_history 
+      SET conservation_date = $1, type_of_work = $2, notes = $3
+      WHERE id = $4
+      RETURNING *;
+    `;
+    const values = [conservation_date, type_of_work, notes, id];
+    
+    console.log('--- WARTOŚCI DO AKTUALIZACJI:', values);
+
+    const result = await pool.query(query, values);
+
+    // Sprawdzamy, czy cokolwiek zostało zaktualizowane. Jeśli nie, wpis o danym ID nie istnieje.
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Nie znaleziono wpisu w historii o podanym ID.' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('BŁĄD w `updateConservationEntry`:', err);
+    res.status(500).json({ error: 'Błąd serwera podczas aktualizacji wpisu.' });
+  }
+};
+
+// --- NOWA FUNKCJA: Usuwanie wpisu ---
+const deleteConservationEntry = async (req, res) => {
+  // UWAGA: Tutaj 'id' to również ID konkretnego wpisu w historii.
+  const { id } = req.params;
+  console.log(`--- USUWAM WPIS Z HISTORII O ID: ${id} ---`);
+
+  try {
+    const query = `
+      DELETE FROM conservation_history 
+      WHERE id = $1;
+    `;
+    const result = await pool.query(query, [id]);
+
+    // Sprawdzamy, czy cokolwiek zostało usunięte. Jeśli nie, wpis o danym ID nie istniał.
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Nie znaleziono wpisu w historii o podanym ID.' });
+    }
+    
+    // Status 204 (No Content) jest standardem dla udanego usunięcia, ale można też wysłać potwierdzenie.
+    res.status(200).json({ message: 'Wpis w historii został pomyślnie usunięty.' });
+
+  } catch (err) {
+    console.error('BŁĄD w `deleteConservationEntry`:', err);
+    res.status(500).json({ error: 'Błąd serwera podczas usuwania wpisu.' });
+  }
+};
+
 module.exports = {
   getConservationHistory,
   addConservationEntry,
+  updateConservationEntry,   // <-- DODAJ TĘ LINIĘ
+  deleteConservationEntry,   // <-- DODAJ TĘ LINIĘ
 };
