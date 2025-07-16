@@ -1,6 +1,13 @@
 <template>
   <div id="app">
-    <!-- Kontener mapy -->
+    <div class="search-container">
+      <input 
+        type="text" 
+        v-model="searchQuery" 
+        placeholder="Wyszukaj pomnik po nazwie..."
+        @input="debouncedSearch"
+      />
+    </div>
     <div class="map-wrapper" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1;">
       <MapView
         ref="mapViewComponent"
@@ -11,14 +18,12 @@
         @monument-selected="handleMonumentSelected"
         @request-login="handleLoginRequest"
       />
-      <!-- Kontrolki logowania -->
       <div class="auth-controls">
         <button v-if="!token" @click="openLoginPanel">Zaloguj</button>
         <button v-if="token" @click="logout">Wyloguj</button>
       </div>
     </div>
 
-    <!-- Panele jako nakładki -->
     <AuthPanel
       v-if="showAuthPanel"
       :initial-is-registering="isRegistering"
@@ -37,7 +42,7 @@
       :is-open="!!selectedMonument"
       :token="token"  
       @close="selectedMonument = null"
-    /> <!-- POPRAWKA: Dodano /> do zamknięcia tagu -->
+    />
   </div>
 </template>
 
@@ -47,6 +52,18 @@ import AuthPanel from './components/AuthPanel.vue';
 import AddMonumentPanel from './components/AddMonumentPanel.vue';
 import MonumentDetailsPanel from './components/MonumentDetailsPanel.vue';
 
+
+function debounce(fn, delay) {
+  let timeoutID = null;
+  return function (...args) {
+    clearTimeout(timeoutID);
+    timeoutID = setTimeout(() => {
+      fn.apply(this, args);
+    }, delay);
+  };
+}
+
+
 export default {
   name: 'App',
   components: {
@@ -55,36 +72,48 @@ export default {
     AddMonumentPanel,
     MonumentDetailsPanel,
   },
-  inject: ['toast'], // Vue-Toastification jest wstrzykiwane
+  inject: ['toast'],
   data() {
     return {
-      token: null, // Przechowuje token JWT
-      showAuthPanel: false, // Kontroluje widoczność panelu logowania/rejestracji
-      isRegistering: false, // Flaga dla trybu rejestracji w AuthPanel
-      selectedMonument: null, // Wybrany pomnik do wyświetlenia w details panelu
-      showAddForm: false, // Kontroluje widoczność panelu dodawania pomnika
-      addModeActive: false, // Tryb dodawania pomnika na mapie (kursor)
-      newMonumentCoords: null, // Współrzędne z kliknięcia na mapie dla nowego pomnika
+      token: null,
+      showAuthPanel: false,
+      isRegistering: false,
+      selectedMonument: null,
+      showAddForm: false,
+      addModeActive: false,
+      newMonumentCoords: null,
+      searchQuery: '',
     };
+  },
+  created() {
+    this.debouncedSearch = debounce(this.triggerSearch, 300);
   },
   mounted() {
     const storedToken = localStorage.getItem('authToken');
     if (storedToken) {
       this.token = storedToken;
       this.toast.info("Twoja sesja została przywrócona.");
-      // Odśwież mapę po przywróceniu sesji, aby pokazać dane dla zalogowanego użytkownika
       this.$nextTick(() => {
         this.$refs.mapViewComponent.fetchMonumentsAndAddMarkers();
       });
     }
   },
+  beforeUnmount() {
+    if (this.debouncedSearch && this.debouncedSearch.cancel) {
+      this.debouncedSearch.cancel();
+    }
+  },
   methods: {
+    triggerSearch() {
+      if (this.$refs.mapViewComponent) {
+        this.$refs.mapViewComponent.fetchMonumentsAndAddMarkers(this.searchQuery);
+      }
+    },
     handleOpenAddPanel(isActive) {
       if (isActive && !this.token) {
         this.handleLoginRequest();
         return;
       }
-      // Zamknij panel szczegółów, jeśli otwierasz panel dodawania
       if (isActive) {
         this.selectedMonument = null;
       }
@@ -92,64 +121,54 @@ export default {
       this.showAddForm = isActive;
     },
 
-    // Ustawia współrzędne po kliknięciu na mapie
     handleMapClick(lngLat) {
       if (!this.addModeActive) return;
       this.newMonumentCoords = [lngLat.lng, lngLat.lat];
       this.toast.info('Współrzędne zostały ustawione z mapy.');
     },
 
-    // Otwiera panel szczegółów
     handleMonumentSelected(monumentData) {
       this.selectedMonument = monumentData;
-      // Zamknij panel dodawania, jeśli otwierasz panel szczegółów
       if (this.showAddForm) {
         this.handleOpenAddPanel(false);
       }
     },
 
-    // Otwiera panel logowania na żądanie z komponentu potomnego (np. MapView)
     handleLoginRequest() {
       this.toast.info('Zaloguj się, aby wykonać tę akcję.');
       this.openLoginPanel();
     },
 
-    // --- Metody obsługujące zdarzenia z Paneli ---
 
-    // Reakcja na pomyślne zalogowanie/rejestrację z AuthPanel
     handleAuthSuccess(token) {
       this.token = token;
-      localStorage.setItem('authToken', token); // Zapisz token w Local Storage
+      localStorage.setItem('authToken', token);
       this.showAuthPanel = false;
       this.toast.success('Zalogowano pomyślnie!');
-      // Odśwież markery na mapie, aby odzwierciedlić status zalogowania
+      this.triggerSearch();
       this.$refs.mapViewComponent.fetchMonumentsAndAddMarkers();
     },
 
-    // Reakcja na pomyślne dodanie pomnika z AddMonumentPanel
     handleMonumentAdded() {
-      this.handleOpenAddPanel(false); // Zamknij panel dodawania
-      // Wywołujemy metodę na komponencie MapView, aby odświeżyć markery
+      this.handleOpenAddPanel(false);
       this.$refs.mapViewComponent.fetchMonumentsAndAddMarkers();
       this.toast.success('Pomnik dodany pomyślnie!');
+      this.triggerSearch();
     },
 
-    // --- Metody związane z autoryzacją (wywoływane przez przyciski) ---
 
     openLoginPanel() {
-      this.isRegistering = false; // Domyślnie tryb logowania
+      this.isRegistering = false;
       this.showAuthPanel = true;
     },
 
     logout() {
-      this.token = null; // Wyczyść token w stanie komponentu
-      localStorage.removeItem('authToken'); // Usuń token z Local Storage
+      this.token = null;
+      localStorage.removeItem('authToken');
       this.toast.success('Wylogowano pomyślnie.');
-      // Jeśli panel dodawania był otwarty, zamknij go
       if (this.showAddForm) {
         this.handleOpenAddPanel(false);
       }
-      // Odśwież markery na mapie, aby odzwierciedlić status wylogowania
       this.$refs.mapViewComponent.fetchMonumentsAndAddMarkers();
     },
   }

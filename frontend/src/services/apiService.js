@@ -19,11 +19,9 @@ async function request(url, options = {}) {
   
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({ error: 'Błąd serwera bez dodatkowych informacji.' }));
-    // Jeśli status to 401 (brak autoryzacji), usuwamy token
     if (response.status === 401) {
       localStorage.removeItem('authToken');
     }
-    // Rzucamy błąd, aby komponent mógł go złapać w bloku catch
     throw new Error(errorData.error || `Błąd serwera: ${response.statusText}`);
   }
 
@@ -41,6 +39,18 @@ export default {
   login(credentials) {
     return request('/auth/login', { method: 'POST', body: JSON.stringify(credentials) });
   },
+  // --- Metody dotyczące pomników ---
+  /**
+   * Pobiera listę pomników, opcjonalnie filtrując je po nazwie.
+   * @param {string} [searchTerm]
+   */
+  fetchMonuments(searchTerm = '') {
+    let url = '/monuments';
+    if (searchTerm && searchTerm.trim()) {
+      url += `?search=${encodeURIComponent(searchTerm.trim())}`;
+    }
+    return request(url);
+  },
   addMonument(monumentData) {
     return request('/monuments', { method: 'POST', body: JSON.stringify(monumentData) });
   },
@@ -50,19 +60,16 @@ export default {
   addConservationEntry(monumentId, entryData) {
     return request(`/monuments/${monumentId}/history`, { method: 'POST', body: JSON.stringify(entryData) });
   },
-  // --- NOWA FUNKCJA DO EDYCJI ---
   /**
    * Aktualizuje istniejący wpis w historii konserwacji.
-   * @param {number} entryId - ID konkretnego wpisu, który edytujemy.
-   * @param {object} entryData - Nowe dane dla wpisu.
+   * @param {number} entryId
+   * @param {object} entryData 
    */
   updateConservationEntry(entryId, entryData) {
-    // ZMIANA: Dodano '/monuments' na początku ścieżki
     return request(`/monuments/history/${entryId}`, { method: 'PUT', body: JSON.stringify(entryData) });
   },
 
   deleteConservationEntry(entryId) {
-    // ZMIANA: Dodano '/monuments' na początku ścieżki
     return request(`/monuments/history/${entryId}`, { method: 'DELETE' });
   },
 };

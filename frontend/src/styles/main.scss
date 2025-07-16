@@ -88,4 +88,74 @@ button {
   &.is-open {
     right: 0;
   }
+  
+}
+.search-container {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  /* NAJWAŻNIEJSZA ZMIANA: Wysoki z-index, aby być ponad wszystkim */
+  z-index: 1001; 
+  width: 90%;
+  max-width: 450px;
+}
+.search-container {
+  /* Pozycjonowanie: Lewy górny róg */
+  position: absolute;
+  top: 5px; /* Odległość od góry */
+  left: 240px; /* Odległość od lewej */
+  z-index: 1001; /* Zapewnia widoczność nad mapą */
+  
+  width: 90%; /* Szerokość, zostanie ograniczona przez max-width */
+  max-width: 350px; /* Maksymalna szerokość dla estetyki */
+  
+  /* Cień i zaokrąglenie dla kontenera (jeśli kiedyś będzie miał tło) */
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  border-radius: 8px; /* Lekkie zaokrąglenie kontenera */
+}
+
+.search-container input {
+  width: 100%;
+  padding: 12px 18px; /* Większy padding wewnątrz pola */
+  font-size: 16px;
+  font-weight: 400;
+  color: #333;
+  
+  background-color: #ffffff; /* Białe tło */
+  border: 1px solid #e0e0e0; /* Delikatna ramka */
+  border-radius: 8px; /* Zaokrąglenie pola input */
+  
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.05); /* Delikatny cień wewnętrzny */
+  outline: none; /* Usuwa domyślne obramowanie po kliknięciu */
+  
+  transition: border-color 0.2s ease, box-shadow 0.2s ease; /* Płynne przejścia */
+}
+
+.search-container input::placeholder {
+  color: #888; /* Kolor tekstu placeholder'a */
+}
+
+.search-container input:focus {
+  border-color: #007bff; /* Kolor ramki po kliknięciu */
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.25); /* Niebieska poświata po kliknięciu */
+}
+
+/* Opcjonalne style dla przycisków autoryzacji, aby były spójne */
+.auth-controls button {
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 15px;
+  cursor: pointer;
+  font-size: 14px;
+  margin-left: 8px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+  transition: background-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.auth-controls button:hover {
+  background-color: #0056b3;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.15);
 }

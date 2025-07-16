@@ -1,8 +1,6 @@
 <template>
   <div class="map-container" :class="{ 'add-mode': isAddModeActive }">
-    <!-- Kontener mapy, jego style są teraz w sekcji <style> -->
     <div id="map"></div>
-    <!-- Przycisk do dodawania, bez zmian -->
     <button @click="openAddMonumentPanel" class="add-button" title="Dodaj nowy pomnik">
       <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
     </button>
@@ -10,6 +8,7 @@
 </template>
 
 <script>
+import apiService from '@/services/apiService';
 import maplibregl from 'maplibre-gl';
 
 export default {
@@ -24,7 +23,6 @@ export default {
       default: false
     }
   },
-  // Wstrzykujemy 'toast' aby móc wyświetlać powiadomienia, np. o błędach
   inject: ['toast'],
   data() {
     return {
@@ -39,7 +37,6 @@ export default {
       })
     };
   },
-  // WAŻNE: Poprawiona sekcja watch
   watch: {
     isAddModeActive(isAdding) {
       if (!isAdding && this.tempMarker) {
@@ -47,9 +44,7 @@ export default {
         this.tempMarker = null;
       }
     },
-    // To jest teraz poprawny watcher, który zareaguje na zmianę statusu logowania
     isUserLoggedIn() {
-      // Po prostu odświeżamy markery, aby pokazać/ukryć prompt do kliknięcia
       this.fetchMonumentsAndAddMarkers();
     }
   },
@@ -105,17 +100,17 @@ export default {
       this.markers = [];
     },
     
-    async fetchMonumentsAndAddMarkers() {
+    async fetchMonumentsAndAddMarkers(searchTerm = '') {
       this.clearMarkers();
+    
       try {
-        const response = await fetch('http://localhost:3000/api/monuments');
-        if (!response.ok) throw new Error('Błąd sieci podczas pobierania pomników');
-        
-        this.monuments = await response.json();
+
+        this.monuments = await apiService.fetchMonuments(searchTerm);
+    
         this.addMonumentsToMap();
       } catch (error) {
         console.error('Błąd podczas pobierania pomników:', error);
-        this.toast.error(error.message);
+        this.toast.error(error.message || 'Nie udało się pobrać danych pomników.');
       }
     },
 
@@ -146,7 +141,6 @@ export default {
           e.stopPropagation();
           
           if (this.isUserLoggedIn) {
-            // Użytkownik zalogowany - można otworzyć panel szczegółów
             this.$emit('monument-selected', monument);
         }});
         }
@@ -209,8 +203,8 @@ export default {
   border-radius: 8px;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
   cursor: pointer;
-  padding: 0; /* Dodano dla pewności */
-  margin: 0; /* Dodano dla pewności */
+  padding: 0;
+  margin: 0;
 }
 
 .add-button svg {
@@ -224,7 +218,6 @@ export default {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
-/* Style dla popupu, można je przenieść do globalnego CSS jeśli będą reużywane */
 :deep(.monument-popup .popup-title) {
   margin: 0 0 5px 0;
   color: #005a8d;

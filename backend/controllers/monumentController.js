@@ -1,24 +1,38 @@
 const pool = require('../config/db');
 
-// Logika z GET /api/monuments
 const getAllMonuments = async (req, res) => {
-  try {
-    // POPRAWKA: Używamy dokładnej nazwy kolumny 'last_restoration_date' z Twojego obrazka
-    const query = 'SELECT id, name, description, ST_AsGeoJSON(location) as location, year, author, last_restoration_date, status FROM monuments';
-    const result = await pool.query(query);
+  const { search } = req.query;
 
-    const monuments = result.rows.map(row => ({
-      ...row,
-      location: JSON.parse(row.location)
+  try {
+    let query = `
+      SELECT id, name, year, author, status, ST_AsGeoJSON(location) as location,
+             description, last_restoration_date 
+      FROM monuments
+    `;
+    const values = []; 
+
+    if (search) {
+      query += ' WHERE name ILIKE $1';
+      values.push(`%${search}%`);
+    }
+
+    query += ' ORDER BY name;';
+
+    const result = await pool.query(query, values);
+
+    const monuments = result.rows.map(m => ({
+      ...m,
+      location: JSON.parse(m.location)
     }));
+    
     res.json(monuments);
+
   } catch (err) {
-    console.error('Błąd podczas pobierania pomników:', err);
-    res.status(500).json({ error: 'Internal Server Error' });
+    console.error('Błąd w `getAllMonuments`:', err);
+    res.status(500).json({ error: 'Błąd serwera podczas pobierania pomników.' });
   }
 };
 
-// Logika z POST /api/monuments
 const addMonument = async (req, res) => {
   const { name, description, location, year, author, last_restoration_date, status } = req.body;
   const creator_user_id = req.user.userId;
@@ -30,7 +44,6 @@ const addMonument = async (req, res) => {
   const [lng, lat] = location.coordinates;
 
   try {
-    // POPRAWKA: Używamy dokładnej nazwy kolumny 'last_restoration_date' w zapytaniu INSERT
     const query = `
       INSERT INTO monuments (name, description, location, year, author, last_restoration_date, status, creator_user_id)
       VALUES ($1, $2, ST_SetSRID(ST_MakePoint($3, $4), 4326), $5, $6, $7, $8, $9)
@@ -57,7 +70,6 @@ const addMonument = async (req, res) => {
   }
 };
 
-// Eksportujemy obie funkcje jako obiekt
 module.exports = {
   getAllMonuments,
   addMonument,
